@@ -15,7 +15,11 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Update-NexTab.ps1') -Destinatio
 @{ Repository=$Repository; ExtensionPath=$ExtensionPath } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'config.json') -Encoding UTF8
 $script = Join-Path $destination 'Update-NexTab.ps1'
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$script+'" -Silent')
-$triggers = @((New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME), (New-ScheduledTaskTrigger -Daily -At '12:00'))
-Register-ScheduledTask -TaskName 'NexTab GitHub Updates' -Action $action -Trigger $triggers -Description 'Automatische NexTab GitHub Release Updates' -Force | Out-Null
+# Wiederkehrende Prüfung alle 10 Minuten, auch nach dem Neustart.
+# schtasks /SC MINUTE /MO 10 hat keine 1-Tages-Endzeit des Repeat-Triggers.
+$taskName = 'NexTab GitHub Updates'
+$taskCommand = 'powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $script + '" -Silent'
+& schtasks.exe /Create /F /SC MINUTE /MO 10 /TN $taskName /TR $taskCommand | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Aufgabe konnte nicht erstellt werden (Windows Aufgabenplanung).' }
 Write-Host "Updater fuer $Repository eingerichtet; NexTab: $ExtensionPath"
 & $script
